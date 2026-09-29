@@ -1,0 +1,77 @@
+-- ============================================================
+--  FIXED SPAWN POINT SCRIPT
+--  Har player hamesha Config.SpawnPoint par hi spawn hoga,
+--  chahe usne last time kahin bhi quit kiya ho.
+-- ============================================================
+
+local function GetFixedSpawn()
+    return {
+        x = Config.SpawnPoint.x,
+        y = Config.SpawnPoint.y,
+        z = Config.SpawnPoint.z,
+        heading = Config.SpawnPoint.heading,
+        model = `mp_m_freemode_01`,
+        skipFade = false
+    }
+end
+
+CreateThread(function()
+    -- spawnmanager ko batao ke last-position use na kare,
+    -- balke hamesha yehi callback chale spawn ke liye.
+    exports.spawnmanager:setAutoSpawnCallback(function()
+        exports.spawnmanager:spawnPlayer(GetFixedSpawn())
+    end)
+
+    exports.spawnmanager:setAutoSpawn(true)
+
+    -- Thoda wait taake spawnmanager fully load ho jaye, phir force spawn.
+    Wait(Config.SpawnDelay)
+    exports.spawnmanager:forceRespawn()
+end)
+
+-- Jab bhi player pehli baar spawn ho ya respawn ho (death ke baad bhi),
+-- ye event fire hota hai. Hum yahan bhi coords ko override kar rahe
+-- hain taake koi aur script (framework ka last-position loader)
+-- position ko change na kar sake.
+AddEventHandler('playerSpawned', function()
+    local ped = PlayerPedId()
+    local sp = Config.SpawnPoint
+
+    SetEntityCoordsNoOffset(ped, sp.x, sp.y, sp.z, false, false, false)
+    SetEntityHeading(ped, sp.heading)
+end)
+
+-- Agar death/respawn ke baad bhi isi jagah spawn karwana hai
+-- (na ki jahan player mara), to ye handle karta hai.
+if Config.ForceOnDeathRespawn then
+    AddEventHandler('baseevents:onPlayerDied', function()
+        CreateThread(function()
+            -- default death/respawn screen ka wait
+            Wait(1000)
+            exports.spawnmanager:spawnPlayer(GetFixedSpawn())
+        end)
+    end)
+end
+
+-- ============================================================
+-- Helper command: apni current location ka coordinate + heading
+-- chat/console me print karega, taake aap Config.SpawnPoint
+-- easily set kar sakein. Test karne ke baad ise hata bhi sakte hain.
+-- ============================================================
+RegisterCommand('getcoords', function()
+    local ped = PlayerPedId()
+    local coords = GetEntityCoords(ped)
+    local heading = GetEntityHeading(ped)
+
+    local msg = string.format(
+        "x = %.2f,  y = %.2f,  z = %.2f,  heading = %.1f",
+        coords.x, coords.y, coords.z, heading
+    )
+
+    print("[fixed-spawn] " .. msg)
+    TriggerEvent('chat:addMessage', {
+        color = { 255, 255, 0 },
+        multiline = true,
+        args = { "Coords", msg }
+    })
+end, false)
